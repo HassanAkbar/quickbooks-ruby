@@ -25,6 +25,7 @@ module Quickbooks
 
       def access_token=(token)
         @oauth = token
+        rebuild_connection!
       end
 
       def company_id=(company_id)
@@ -34,6 +35,25 @@ module Quickbooks
       # realm & company are synonymous
       def realm_id=(company_id)
         @company_id = company_id
+      end
+
+      def oauth_v1?
+        @oauth.is_a? OAuth::AccessToken
+      end
+      
+      def oauth_v2?
+        @oauth.is_a? OAuth2::AccessToken
+      end
+
+      def rebuild_connection!
+        return unless oauth_v2?
+        @oauth.client.connection = nil
+        @oauth.client.connection.build do |builder|
+          builder.use :gzip
+          builder.request :multipart
+          builder.request :url_encoded
+          builder.adapter :net_http
+        end
       end
 
       def url_for_resource(resource)
@@ -61,7 +81,7 @@ module Quickbooks
         query ||= default_model_query
         query = "#{query} STARTPOSITION #{start_position} MAXRESULTS #{max_results}"
 
-        "#{url_for_base}/query?query=#{URI.encode_www_form_component(query)}"
+        "#{url_for_base}/query?query=#{CGI.escape(query)}"
       end
 
       private
@@ -189,7 +209,8 @@ module Quickbooks
         unless headers.has_key?('Accept-Encoding')
           headers['Accept-Encoding'] = HTTP_ACCEPT_ENCODING
         end
-        @oauth.get(url, headers)
+        raw_response = oauth_get(url, headers)
+        Quickbooks::Service::Responses::OAuthHttpResponse.wrap(raw_response)
       end
 
       def do_http_file_upload(uploadIO, url, metadata = nil)
@@ -229,22 +250,56 @@ module Quickbooks
         log_request_body(body)
         log "REQUEST HEADERS = #{headers.inspect}"
 
-        response = case method
-          when :get
-            @oauth.get(url, headers)
-          when :post
-            @oauth.post(url, body, headers)
-          when :upload
-            @oauth.post_with_multipart(url, body, headers)
-          else
-            raise "Do not know how to perform that HTTP operation"
-          end
-
-        if response.code.to_i == 302 && [:get, :post].include?(method)
-          do_http(method, response['location'], body, headers)
+        raw_response = case method
+        when :get
+          oauth_get(url, headers)
+        when :post
+          oauth_post(url, body, headers)
+        when :upload
+          oauth_post_with_multipart(url, body, headers)
         else
-          check_response(response, :request => body)
+          raise "Do not know how to perform that HTTP operation"
         end
+        response = Quickbooks::Service::Responses::OAuthHttpResponse.wrap(raw_response)
+        check_response(response, :request => body)
+
+        # if response.code.to_i == 302 && [:get, :post].include?(method)
+        #   do_http(method, response['location'], body, headers)
+        # else
+        #   check_response(response, :request => body)
+        # end
+      end
+
+      def oauth_get(url, headers)
+        if oauth_v1?
+          @oauth.get(url, headers)
+        elsif oauth_v2?
+          @oauth.get(url, headers: headers, raise_errors: false)
+        else
+          raise InvalidOauthAccessTokenObject.new(@oauth)
+        end
+      end
+
+      def oauth_post(url, body, headers)
+        if oauth_v1?
+          @oauth.post(url, body, headers)
+        elsif oauth_v2?
+          @oauth.post(url, headers: headers, body: body, raise_errors: false)
+        else
+          raise InvalidOauthAccessTokenObject.new(@oauth)
+        end
+      end
+
+      def oauth_post_with_multipart(url, body, headers)
+        raw_response = if oauth_v1?
+                         oauth.post_with_multipart(url, body, headers)
+                       elsif oauth_v2?
+                         oauth.post_with_multipart(url, headers: headers, body: body, raise_errors: false)
+                       else
+                         raise InvalidOauthAccessTokenObject.new(@oauth)
+                       end
+        response = Quickbooks::Service::Responses::OAuthHttpResponse.wrap(raw_response)
+        check_response(response, :request => body)
       end
 
       def add_query_string_to_url(url, params)
@@ -259,9 +314,12 @@ module Quickbooks
 
       def check_response(response, options = {})
         log "------ QUICKBOOKS-RUBY RESPONSE ------"
-        log "RESPONSE CODE = #{response.code}"
+         log "RESPONSE CODE = #{response.code}"
+        if response.respond_to?(:headers)
+          log "RESPONSE HEADERS = #{response.headers}"
+        end
         log_response_body(response)
-        status = response.code.to_i
+        status = response.code
         case status
         when 200
           # even HTTP 200 can contain an error, so we always have to peek for an Error
@@ -301,6 +359,8 @@ module Quickbooks
         if is_json?
           log ">>>>#{response.plain_body.inspect}"
           parse_json(response.plain_body)
+        elsif is_pdf?
+          log("BODY is a PDF : not dumping")
         else
           log(log_xml(response.plain_body))
           parse_xml(response.plain_body)
@@ -311,8 +371,26 @@ module Quickbooks
         log "REQUEST BODY:"
         if is_json?
           log(body.inspect)
+        elsif is_pdf?
+          log("BODY is a PDF : not dumping")
         else
-          log(log_xml(body))
+           #multipart request for uploads arrive here in a Hash with UploadIO vals
+          if body.is_a?(Hash)
+            body.each do |k,v|
+              log('BODY PART:')
+              val_content = v.inspect
+              if v.is_a?(UploadIO)
+                if v.content_type == 'application/xml'
+                  if v.io.is_a?(StringIO)
+                    val_content = log_xml(v.io.string)
+                  end
+                end
+              end
+              log("#{k}: #{val_content}")
+            end
+          else
+            log(log_xml(body))
+          end
         end
       end
 
@@ -331,9 +409,13 @@ module Quickbooks
       end
 
       def response_is_error?
-        @last_response_xml.xpath("//xmlns:IntuitResponse/xmlns:Fault")[0] != nil
-      rescue Nokogiri::XML::XPath::SyntaxError => exception
-        true
+        begin
+          @last_response_xml.xpath("//xmlns:IntuitResponse/xmlns:Fault")[0] != nil
+        rescue Nokogiri::XML::XPath::SyntaxError => exception
+          #puts @last_response_xml.to_xml.to_s
+          #puts "WTF: #{exception.inspect}:#{exception.backtrace.join("\n")}"
+          true
+        end
       end
 
       def parse_intuit_error
