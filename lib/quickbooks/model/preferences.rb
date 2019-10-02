@@ -4,6 +4,7 @@ module Quickbooks
       XML_COLLECTION_NODE = "Preferences"
       XML_NODE            = "Preferences"
       REST_RESOURCE       = 'preferences'
+      MINORVERSION        = 21
 
       xml_name XML_NODE
 
@@ -21,7 +22,7 @@ module Quickbooks
         :product_and_services => %w(ForSales? ForPurchase? QuantityWithPriceAndRate? QuantityOnHand?),
         :sales_forms          => %w(CustomTxnNumbers? AllowDeposit? AllowDiscount? DefaultDiscountAccount? AllowEstimates? EstimateMessage? 
                                                 ETransactionEnabledStatus? ETransactionAttachPDF? ETransactionPaymentEnabled? IPNSupportEnabled? 
-                                                AllowServiceDate? AllowShipping? DefaultShippingAccount? DefaultTerms DefaultCustomerMessage),
+                                                AllowServiceDate? AllowShipping? DefaultShippingAccount? DefaultTerms DefaultCustomerMessage AutoApplyCredit?),
         :vendor_and_purchase  => %w(TrackingByCustomer? BillableExpenseTracking? DefaultTerms? DefaultMarkup? POCustomField),
         :time_tracking        => %w(UseServices? BillCustomers? ShowBillRateToAll WorkWeekStartDate MarkTimeEntiresBillable?),
         :tax                  => %w(UsingSalesTax?),
