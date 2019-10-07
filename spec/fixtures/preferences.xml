@@ -43,6 +43,7 @@
     <AllowServiceDate>false</AllowServiceDate>
     <AllowShipping>false</AllowShipping>
     <DefaultTerms>3</DefaultTerms>
+    <AutoApplyCredit>true</AutoApplyCredit>
   </SalesFormsPrefs>
   <EmailMessagesPrefs>
     <InvoiceMessage>
@@ -106,6 +107,7 @@ Demo Company</Message>
   </TimeTrackingPrefs>
   <TaxPrefs>
     <UsingSalesTax>false</UsingSalesTax>
+    <PartnerTaxEnabled>false</PartnerTaxEnabled>
   </TaxPrefs>
   <CurrencyPrefs>
     <MultiCurrencyEnabled>false</MultiCurrencyEnabled>
