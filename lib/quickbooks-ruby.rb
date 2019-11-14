@@ -14,6 +14,7 @@ require 'quickbooks/util/logging'
 require 'quickbooks/util/http_encoding_helper'
 require 'quickbooks/util/name_entity'
 require 'quickbooks/util/query_builder'
+require 'quickbooks/faraday/middleware/gzip'
 
 #== OAuth Responses
 require 'quickbooks/service/responses/oauth_http_response'
