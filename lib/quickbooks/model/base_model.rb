@@ -2,7 +2,6 @@ module Quickbooks
   module Model
     class BaseModel
       include Definition
-      include ActiveModel::AttributeMethods
       include ActiveModel::Validations
       include Validator
       include ROXML

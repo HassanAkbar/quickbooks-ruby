@@ -45,6 +45,8 @@ module Quickbooks
         @oauth.is_a? OAuth2::AccessToken
       end
 
+      # [OAuth2] The default Faraday connection does not have gzip or multipart support.
+      # We need to reset the existing connection and build a new one.
       def rebuild_connection!
         return unless oauth_v2?
         @oauth.client.connection = nil
@@ -262,12 +264,6 @@ module Quickbooks
         end
         response = Quickbooks::Service::Responses::OAuthHttpResponse.wrap(raw_response)
         check_response(response, :request => body)
-
-        # if response.code.to_i == 302 && [:get, :post].include?(method)
-        #   do_http(method, response['location'], body, headers)
-        # else
-        #   check_response(response, :request => body)
-        # end
       end
 
       def oauth_get(url, headers)
@@ -319,7 +315,7 @@ module Quickbooks
           log "RESPONSE HEADERS = #{response.headers}"
         end
         log_response_body(response)
-        status = response.code
+        status = response.code.to_i
         case status
         when 200
           # even HTTP 200 can contain an error, so we always have to peek for an Error
