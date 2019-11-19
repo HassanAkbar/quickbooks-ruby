@@ -3,7 +3,6 @@ module Quickbooks
     class AccessToken < BaseService
 
       RENEW_URL = "https://appcenter.intuit.com/api/v1/connection/reconnect"
-      #DISCONNECT_URL = "https://appcenter.intuit.com/api/v1/connection/disconnect"
       DISCONNECT_URL_OAUTH1 = "https://appcenter.intuit.com/api/v1/connection/disconnect"
       DISCONNECT_URL_OAUTH2 = "https://developer.api.intuit.com/v2/oauth2/tokens/revoke"
 
