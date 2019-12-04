@@ -7,7 +7,6 @@ module Quickbooks
         "#{url}&minorversion=#{Quickbooks::Model::Preferences::MINORVERSION}"
       end
 
-
       private
       
       def model
